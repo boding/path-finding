@@ -1,0 +1,287 @@
+<!--
+/************************************************
+ *
+ * file  : astar.html
+ * author: bobding
+ * date  : 2015-01-12
+ * detail:
+ *
+************************************************/
+-->
+
+<html>
+<canvas id="map"></canvas>
+<script>
+var Type =
+{
+    FREE : 1,
+    WALL : 2,
+    PATH : 3,
+    LOOK : 4
+}
+
+var Cord = function(row, col)
+{
+    this.row = row;
+    this.col = col;
+}
+
+Cord.prototype.IsEquals = function(cord)
+{
+    return this.row==cord.row && this.col==cord.col;
+}
+
+var Color = 
+{
+    RED  : 'rgb(255, 0  , 0  )',
+    BLACK: 'rgb(0  , 0  , 0  )',
+    GREEN: 'rgb(0  , 128, 0  )',
+    BLUE : 'rgb(0  , 255, 255)',
+    GRAY : 'rgb(128, 128, 128)',
+}
+
+var astar = {
+    Node : function()
+    {
+        this.cord = 0;
+        this.type = 0;
+        this.g = 0;
+        this.h = 0;
+        this.f = 0;
+        this.parent = 0;
+    },
+
+    Init : function(row, col)
+    {
+        this.map = new Array();
+        this.dim = 16;
+        this.row = row;
+        this.col = col;
+        for (var i=0; i<row; ++i)
+        {
+            this.map[i] = new Array();
+            for (var j=0; j<col; ++j)
+            {
+                var node  = new astar.Node();
+                node.cord = new Cord(i, j);
+                node.type = Math.random()>0.8 ? Type.WALL : Type.FREE;
+                this.map[i][j] = node;
+            }
+        }
+    },
+
+    Heuristic : function(c, e)
+    {
+        //return Math.sqrt((e.row-c.row)*(e.row-c.row)+(e.col-c.col)*(e.col-c.col));
+        return Math.abs(e.row-c.row) + Math.abs(e.col-c.col);
+    },
+
+    IsValid : function(cord)
+    {
+        return (cord.row>=0 &&
+                cord.row<this.row && 
+                cord.col>=0 && 
+                cord.col<this.col && 
+                Type.FREE==this.map[cord.row][cord.col].type);
+    },
+
+    Neighbors : function(node)
+    {
+        var neighbors = new Array();
+        var cord = new Cord(node.cord.row-1, node.cord.col);
+        if (astar.IsValid(cord))
+        {
+            var t = new astar.Node();
+            t.cord = cord;
+            neighbors.push(t);
+        }
+        var cord = new Cord(node.cord.row+1, node.cord.col);
+        if (astar.IsValid(cord))
+        {
+            var t = new astar.Node();
+            t.cord = cord;
+            neighbors.push(t);
+        }
+        var cord = new Cord(node.cord.row, node.cord.col-1);
+        if (astar.IsValid(cord))
+        {
+            var t = new astar.Node();
+            t.cord = cord;
+            neighbors.push(t);
+        }
+        var cord = new Cord(node.cord.row, node.cord.col+1);
+        if (astar.IsValid(cord))
+        {
+            var t = new astar.Node();
+            t.cord = cord;
+            neighbors.push(t);
+        }
+
+        return neighbors;
+    },
+
+    AddNode : function(node, set)
+    {
+        set.push(node);
+    },
+
+    DelNode : function(node, set)
+    {
+        var size = set.length;
+        for (var i=0; i<size; ++i)
+        {
+            if (node.cord.row==set[i].cord.row && node.cord.col==set[i].cord.col)
+            {
+                set.splice(i, 1);
+                return;
+            }
+        }
+    },
+
+    HasNode : function(node, set)
+    {
+        var size = set.length;
+        for (var i=0; i<size; ++i)
+        {
+            if (node.cord.row==set[i].cord.row && node.cord.col==set[i].cord.col)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    },
+
+    GetNode : function(node, set)
+    {
+        var size = set.length;
+        for (var i=0; i<size; ++i)
+        {
+            if (node.cord.row==set[i].cord.row && node.cord.col==set[i].cord.col)
+            {
+                return set[i];
+            }
+        }
+
+        return 0;
+    },
+
+    MinimumF : function(set)
+    {
+        var size = set.length, min = set[0].f, idx = 0;
+        for (var i=0; i<size; ++i)
+        {
+            if (min > set[i].f)
+            {
+                min = set[i].f;
+                idx = i;
+            }
+        }
+
+        return set[idx];
+    },
+
+    Find : function(s, e)
+    {
+        this.map[s.row][s.col].type = Type.FREE;
+        this.map[e.row][e.col].type = Type.FREE;
+
+        var openset = new Array();
+        var closedset = new Array();
+        
+        var node = new astar.Node();
+        node.cord = s;
+        node.g = 0;
+        node.h = astar.Heuristic(s, e);
+        node.f = node.g + node.h;
+        openset.push(node);
+
+        while (openset.length > 0)
+        {
+            var node = astar.MinimumF(openset);
+            astar.DelNode(node, openset);
+            astar.AddNode(node, closedset);
+
+            if (node.cord.IsEquals(e))
+            {
+                var size = closedset.length;
+                for (var i=0; i<size; ++i)
+                {
+                    this.map[closedset[i].cord.row][closedset[i].cord.col].type = Type.LOOK;
+                }
+                while (node)
+                {
+                    this.map[node.cord.row][node.cord.col].type = Type.PATH;
+                    node = node.parent;
+                }
+                return;
+            }
+
+            var neighbors = astar.Neighbors(node);
+            var size = neighbors.length;
+            for (var i=0; i<size; ++i)
+            {
+                if (astar.HasNode(neighbors[i], closedset))
+                {
+                    continue;
+                }
+
+                var neighbor = astar.GetNode(neighbors[i], openset);
+                if (!neighbor || neighbor.g>node.g+1)
+                {
+                    neighbors[i].g = node.g + 1;
+                    neighbors[i].h = astar.Heuristic(neighbors[i].cord, e);
+                    neighbors[i].f = neighbors[i].g + neighbors[i].h;
+                    neighbors[i].parent = node;
+                    if (neighbor) astar.DelNode(neighbor, openset);
+                    astar.AddNode(neighbors[i], openset);
+                }
+            }
+        }
+    },
+
+    Draw : function()
+    {
+        var canvas = document.getElementById('map');
+        canvas.width  = this.col * this.dim + 1;
+        canvas.height = this.row * this.dim + 1;
+        var ctx = canvas.getContext('2d');
+
+        for (var i=0; i<this.row; ++i)
+        for (var j=0; j<this.col; ++j)
+        {
+            switch (this.map[i][j].type)
+            {
+            case Type.FREE: ctx.fillStyle = Color.BLACK; break;
+            case Type.WALL: ctx.fillStyle = Color.RED  ; break;
+            case Type.PATH: ctx.fillStyle = Color.GREEN; break;
+            case Type.LOOK: ctx.fillStyle = Color.GRAY ; break;
+            }
+
+            ctx.fillRect(j*this.dim, i*this.dim, this.dim, this.dim);
+        }
+
+        ctx.strokeStyle = Color.BLUE;
+        for (var i=0; i<=this.row; ++i)
+        {
+            ctx.moveTo(0, i*this.dim+0.5);
+            ctx.lineTo(this.col*this.dim+0.5, i*this.dim+0.5);
+            ctx.stroke();
+        }
+
+        for (var i=0; i<=this.col; ++i)
+        {
+            ctx.moveTo(i*this.dim+0.5, 0);
+            ctx.lineTo(i*this.dim+0.5, this.row*this.dim+0.5);
+            ctx.stroke();
+        }
+    }
+}
+
+var row = 32, col = 32;
+astar.Init(row, col);
+astar.Find(new Cord(0, 0), new Cord(row-1, col-1));
+astar.Draw();
+
+</script>
+</html>
